@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f6f4ee">
+    <title>little folio — your stories, gathered</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <a class="brand" href="#" id="home-link" aria-label="little folio home">
+          <span class="brand-mark" aria-hidden="true">lf</span>
+          <span>little folio<span class="brand-period">.</span></span>
+        </a>
+        <div class="topbar-right">
+          <span class="privacy-note"><span class="lock-icon" aria-hidden="true">⌑</span> just for you</span>
+          <button class="avatar" aria-label="Your private space">a</button>
+        </div>
+      </header>
+
+      <main>
+        <section id="gallery-view" class="gallery-view">
+          <div class="gallery-intro">
+            <div class="intro-copy">
+              <span class="eyebrow"><span class="tiny-spark">✳</span> YOUR LITTLE CORNER OF THE INTERNET</span>
+              <h1>Keep the good<br><em>stuff close.</em></h1>
+              <p>A home for the photos, words, and little moments<br class="desktop-break"> you want to remember.</p>
+            </div>
+            <div class="intro-art" aria-hidden="true">
+              <span class="art-sun"></span>
+              <span class="art-flower flower-one">✿</span>
+              <span class="art-flower flower-two">✳</span>
+              <span class="art-note">made of<br>little things</span>
+              <span class="art-doodle">↗</span>
+              <span class="art-leaf"></span>
+            </div>
+          </div>
+
+          <section class="projects-section">
+            <div class="section-heading">
+              <div>
+                <h2>Your scrapbooks <span class="count-pill" id="project-count">0</span></h2>
+                <p class="section-subtitle">A little collection of your own.</p>
+              </div>
+              <button class="button button-dark" id="new-project-button"><span class="plus">+</span> New scrapbook</button>
+            </div>
+            <div id="projects-grid" class="projects-grid"></div>
+            <div id="empty-state" class="empty-state">
+              <div class="empty-illustration" aria-hidden="true">
+                <div class="empty-paper"><span>✿</span><i></i><i></i><b>your<br>story<br>starts here</b></div>
+                <span class="empty-star">✳</span>
+              </div>
+              <h3>A blank page is a lovely place to start.</h3>
+              <p>Make a scrapbook for a trip, a season, or simply the everyday.</p>
+              <button class="button button-light" id="empty-create-button">Create your first scrapbook <span>↗</span></button>
+            </div>
+          </section>
+
+          <footer class="gallery-footer"><span>Made for the moments that matter.</span><span class="footer-private">🔒 Private to this browser, saved in its local database.</span></footer>
+        </section>
+
+        <section id="editor-view" class="editor-view hidden">
+          <div class="editor-topline">
+            <button class="back-button" id="back-to-gallery"><span>←</span> All scrapbooks</button>
+            <div class="editor-project-name">
+              <span id="editor-title">My scrapbook</span>
+              <span class="save-status" id="save-status"><i></i> Saved privately</span>
+            </div>
+            <button class="button button-dark editor-add-page-top" id="add-page-top"><span class="plus">+</span> Add page</button>
+          </div>
+          <div class="editor-layout">
+            <aside class="tool-rail">
+              <div class="rail-section-label">CREATE</div>
+              <button class="tool-button active" id="add-photo-button" title="Add a photo"><span class="tool-icon">▧</span><span>Photos</span></button>
+              <button class="tool-button" id="add-text-button" title="Add text"><span class="tool-icon tool-text">T</span><span>Text</span></button>
+              <div class="rail-divider"></div>
+              <div class="rail-section-label">PAGE</div>
+              <button class="tool-button" id="add-page-button" title="Add a page"><span class="tool-icon">▤</span><span>New page</span></button>
+              <button class="tool-button" id="delete-page-button" title="Delete this page"><span class="tool-icon">⌫</span><span>Delete page</span></button>
+              <div class="rail-hint"><span>✦</span><p>Tip: drag anything on your page to make it yours.</p></div>
+            </aside>
+            <section class="workspace">
+              <div class="canvas-toolbar">
+                <div class="page-label"><span id="page-title-label">PAGE 01</span><span class="page-dot"></span><span id="page-count-label">1 page</span></div>
+                <div class="canvas-actions">
+                  <button class="icon-button" id="zoom-out-button" title="Zoom out">−</button>
+                  <span class="zoom-label" id="zoom-label">100%</span>
+                  <button class="icon-button" id="zoom-in-button" title="Zoom in">+</button>
+                </div>
+              </div>
+              <div class="canvas-stage" id="canvas-stage">
+                <div class="scrapbook-page" id="scrapbook-page">
+                  <div class="paper-grain"></div>
+                  <div class="page-empty-hint" id="page-empty-hint">
+                    <span class="empty-flower">✿</span>
+                    <span>Start with a photo or a few words</span>
+                    <span class="empty-hint-actions"><button id="empty-add-photo">Add a photo</button><span>·</span><button id="empty-add-text">Add text</button></span>
+                  </div>
+                  <div class="page-items" id="page-items"></div>
+                </div>
+              </div>
+              <div class="page-strip-wrap">
+                <div class="page-strip" id="page-strip"></div>
+                <button class="add-page-tile" id="add-page-tile"><span>+</span><span>Add page</span></button>
+              </div>
+            </section>
+            <aside class="inspector" id="inspector">
+              <div class="inspector-heading">
+                <span class="inspector-kicker">MAKE IT YOURS</span>
+                <h3 id="inspector-title">A little note</h3>
+                <p id="inspector-description">Pick something on your page to make it your own.</p>
+              </div>
+              <div class="inspector-empty" id="inspector-empty"><span>✳</span><p>Select a photo or text<br>to see its options.</p></div>
+              <div id="text-controls" class="inspector-controls hidden">
+                <label class="control-label" for="text-content">YOUR WORDS</label>
+                <textarea id="text-content" rows="3" placeholder="Write something lovely..."></textarea>
+                <label class="control-label" for="font-family">FONT</label>
+                <select id="font-family">
+                  <option value="serif">Editorial serif</option>
+                  <option value="sans">Clean sans</option>
+                  <option value="hand">Handwritten</option>
+                </select>
+                <div class="control-row"><label class="control-label" for="font-size">SIZE</label><span id="font-size-value">24 px</span></div>
+                <input id="font-size" type="range" min="12" max="72" value="24">
+                <label class="control-label">COLOR</label>
+                <div class="color-swatches" id="text-colors">
+                  <button class="color-swatch selected" data-color="#303b2e" style="--swatch:#303b2e" aria-label="Forest"></button>
+                  <button class="color-swatch" data-color="#bc6950" style="--swatch:#bc6950" aria-label="Terracotta"></button>
+                  <button class="color-swatch" data-color="#6b7898" style="--swatch:#6b7898" aria-label="Blue"></button>
+                  <button class="color-swatch" data-color="#c59b45" style="--swatch:#c59b45" aria-label="Honey"></button>
+                  <button class="color-swatch" data-color="#39322e" style="--swatch:#39322e" aria-label="Ink"></button>
+                  <label class="custom-color" title="Choose a custom color"><span>+</span><input id="custom-text-color" type="color" value="#303b2e" aria-label="Custom text color"></label>
+                </div>
+                <div class="inspector-bottom-actions"><button class="delete-element-button" id="delete-element-button">⌫ &nbsp; Delete text</button></div>
+              </div>
+              <div id="image-controls" class="inspector-controls hidden">
+                <div class="image-preview-wrap"><img id="selected-image-preview" alt="Selected photo"></div>
+                <label class="control-label" for="image-width">SIZE</label>
+                <div class="control-row"><span>Width</span><span id="image-width-value">240 px</span></div>
+                <input id="image-width" type="range" min="80" max="520" value="240">
+                <div class="control-row"><span>Height</span><span id="image-height-value">180 px</span></div>
+                <input id="image-height" type="range" min="70" max="440" value="180">
+                <div class="image-actions"><button class="button button-light" id="crop-image-button">✂&nbsp; Crop photo</button><button class="delete-element-button" id="delete-image-button">⌫ &nbsp; Delete photo</button></div>
+              </div>
+            </aside>
+          </div>
+        </section>
+      </main>
+
+      <input id="photo-input" type="file" accept="image/*" multiple hidden>
+      <div id="modal-root"></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>
