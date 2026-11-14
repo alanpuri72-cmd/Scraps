@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <div id="app">
+    <div id="app" class="auth-screen">
       <header class="topbar">
         <a class="brand" href="#" id="home-link" aria-label="little folio home">
           <span class="brand-mark" aria-hidden="true">lf</span>
@@ -21,44 +21,36 @@
       </header>
 
       <main>
-        <section id="gallery-view" class="gallery-view">
-          <div class="gallery-intro">
-            <div class="intro-copy">
-              <span class="eyebrow"><span class="tiny-spark">✳</span> YOUR LITTLE CORNER OF THE INTERNET</span>
-              <h1>Keep the good<br><em>stuff close.</em></h1>
-              <p>A home for the photos, words, and little moments<br class="desktop-break"> you want to remember.</p>
+        <section id="auth-view" class="auth-view">
+          <div class="auth-card">
+            <span class="eyebrow">YOUR LITTLE CORNER OF THE INTERNET</span>
+            <h1 class="auth-title" id="auth-title">Welcome to<br><em>little folio.</em></h1>
+            <p class="auth-intro">Gather your favorite moments in one little place.</p>
+            <div class="auth-tabs" role="tablist" aria-label="Choose an account action">
+              <button class="auth-tab active" id="signup-tab" type="button" role="tab" aria-selected="true" data-auth-mode="signup">Sign up</button>
+              <button class="auth-tab" id="login-tab" type="button" role="tab" aria-selected="false" data-auth-mode="login">Log in</button>
             </div>
-            <div class="intro-art" aria-hidden="true">
-              <span class="art-sun"></span>
-              <span class="art-flower flower-one">✿</span>
-              <span class="art-flower flower-two">✳</span>
-              <span class="art-note">made of<br>little things</span>
-              <span class="art-doodle">↗</span>
-              <span class="art-leaf"></span>
-            </div>
+            <form id="auth-form" role="tabpanel" aria-labelledby="signup-tab">
+              <label for="auth-username">USERNAME</label>
+              <input id="auth-username" name="username" type="text" autocomplete="off" placeholder="Choose a username" required>
+              <label for="auth-password">PASSWORD</label>
+              <input id="auth-password" name="password" type="password" autocomplete="off" placeholder="At least 8 characters" minlength="8" required>
+              <p class="auth-prototype-note">Prototype only: this screen does not create accounts or send/save your credentials. Projects are stored in this browser.</p>
+              <button class="button button-dark auth-submit" id="auth-submit" type="submit">Sign up (demo)</button>
+            </form>
           </div>
+        </section>
 
+        <section id="gallery-view" class="gallery-view hidden">
           <section class="projects-section">
             <div class="section-heading">
               <div>
-                <h2>Your scrapbooks <span class="count-pill" id="project-count">0</span></h2>
-                <p class="section-subtitle">A little collection of your own.</p>
+                <h2>Your projects <span class="count-pill" id="project-count">0</span></h2>
               </div>
-              <button class="button button-dark" id="new-project-button"><span class="plus">+</span> New scrapbook</button>
+              <button class="button button-dark" id="new-project-button"><span class="plus">+</span> Start a new project</button>
             </div>
             <div id="projects-grid" class="projects-grid"></div>
-            <div id="empty-state" class="empty-state">
-              <div class="empty-illustration" aria-hidden="true">
-                <div class="empty-paper"><span>✿</span><i></i><i></i><b>your<br>story<br>starts here</b></div>
-                <span class="empty-star">✳</span>
-              </div>
-              <h3>A blank page is a lovely place to start.</h3>
-              <p>Make a scrapbook for a trip, a season, or simply the everyday.</p>
-              <button class="button button-light" id="empty-create-button">Create your first scrapbook <span>↗</span></button>
-            </div>
           </section>
-
-          <footer class="gallery-footer"><span>Made for the moments that matter.</span><span class="footer-private">🔒 Private to this browser, saved in its local database.</span></footer>
         </section>
 
         <section id="editor-view" class="editor-view hidden">
@@ -73,12 +65,31 @@
           <div class="editor-layout">
             <aside class="tool-rail">
               <div class="rail-section-label">CREATE</div>
-              <button class="tool-button active" id="add-photo-button" title="Add a photo"><span class="tool-icon">▧</span><span>Photos</span></button>
-              <button class="tool-button" id="add-text-button" title="Add text"><span class="tool-icon tool-text">T</span><span>Text</span></button>
+              <button class="tool-button active" id="add-photo-button" title="Add a photo">
+                <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18.5V6.5A1.5 1.5 0 0 1 6.5 5h11A1.5 1.5 0 0 1 19 6.5v12A1.5 1.5 0 0 1 17.5 20h-11A1.5 1.5 0 0 1 5 18.5Zm2.2-8.4 2.2 2.9 2.2-2.1 3.2 4.4H6.6l.6-5.2Zm8.7-1.7a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6Z"/></svg>
+                <span>Photos</span>
+              </button>
+              <button class="tool-button" id="add-sticker-button" title="Add a sticker">
+                <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.3c2.7 0 5 .9 6.8 2.7A9 9 0 0 1 21 12c0 2.6-.9 4.9-2.7 6.8A9 9 0 0 1 12 21a9 9 0 0 1-6.8-2.7A9 9 0 0 1 3 12c0-2.6.9-4.9 2.7-6.8A9 9 0 0 1 12 3.3Zm-.8 4.6a.9.9 0 0 0-.9.9v1.8H8.6a.9.9 0 0 0 0 1.8h1.7v1.8a.9.9 0 0 0 1.8 0v-1.8h1.8a.9.9 0 0 0 0-1.8h-1.8V8.8a.9.9 0 0 0-.9-.9Zm5.5 6.2a1.1 1.1 0 0 0-1.1 1.1 4.5 4.5 0 0 1-1.9 3.3 1.1 1.1 0 0 0 1.4 1.7 6.7 6.7 0 0 0 2.7-4.9 1.1 1.1 0 0 0-1.1-1.2Z"/></svg>
+                <span>Stickers</span>
+              </button>
+              <button class="tool-button" id="add-text-button" title="Add text">
+                <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v1A1.5 1.5 0 0 1 18.5 8H15v10.5a1.5 1.5 0 0 1-1.5 1.5h-1A1.5 1.5 0 0 1 11 18.5V8H5.5A1.5 1.5 0 0 1 4 6.5v-1Z"/></svg>
+                <span>Text</span>
+              </button>
               <div class="rail-divider"></div>
               <div class="rail-section-label">PAGE</div>
               <button class="tool-button" id="add-page-button" title="Add a page"><span class="tool-icon">▤</span><span>New page</span></button>
               <button class="tool-button" id="delete-page-button" title="Delete this page"><span class="tool-icon">⌫</span><span>Delete page</span></button>
+              <div class="rail-divider"></div>
+              <div class="rail-section-label">PALETTE</div>
+              <div class="page-color-picker" id="page-color-picker" aria-label="Choose a page background color">
+                <button class="page-color-swatch selected" data-page-color="#fcfaf4" style="--swatch:#fcfaf4" aria-label="Warm paper"></button>
+                <button class="page-color-swatch" data-page-color="#f2e8d7" style="--swatch:#f2e8d7" aria-label="Cream"></button>
+                <button class="page-color-swatch" data-page-color="#e6ead8" style="--swatch:#e6ead8" aria-label="Moss"></button>
+                <button class="page-color-swatch" data-page-color="#efe4df" style="--swatch:#efe4df" aria-label="Blush"></button>
+                <button class="page-color-swatch" data-page-color="#dfe7f2" style="--swatch:#dfe7f2" aria-label="Sky"></button>
+              </div>
               <div class="rail-hint"><span>✦</span><p>Tip: drag anything on your page to make it yours.</p></div>
             </aside>
             <section class="workspace">
@@ -124,6 +135,12 @@
                 </select>
                 <div class="control-row"><label class="control-label" for="font-size">SIZE</label><span id="font-size-value">24 px</span></div>
                 <input id="font-size" type="range" min="12" max="72" value="24">
+                <div id="sticker-size-controls" class="hidden">
+                  <label class="control-label" for="sticker-width">SHAPE WIDTH <span id="sticker-width-value">16%</span></label>
+                  <input id="sticker-width" type="range" min="8" max="80" value="16">
+                  <label class="control-label" for="sticker-height">SHAPE HEIGHT <span id="sticker-height-value">14%</span></label>
+                  <input id="sticker-height" type="range" min="8" max="80" value="14">
+                </div>
                 <label class="control-label">COLOR</label>
                 <div class="color-swatches" id="text-colors">
                   <button class="color-swatch selected" data-color="#303b2e" style="--swatch:#303b2e" aria-label="Forest"></button>

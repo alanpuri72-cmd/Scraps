@@ -5,10 +5,11 @@
   const LEGACY_STORAGE_KEY = "Scraps-projects-v1";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const appRoot = $("#app");
+  const authView = $("#auth-view");
   const galleryView = $("#gallery-view");
   const editorView = $("#editor-view");
   const projectsGrid = $("#projects-grid");
-  const emptyState = $("#empty-state");
   const pageItems = $("#page-items");
   const pageElement = $("#scrapbook-page");
   const photoInput = $("#photo-input");
@@ -129,8 +130,8 @@
   }
 
   function renderGallery() {
+    projects.sort((first, second) => new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0));
     $("#project-count").textContent = projects.length;
-    emptyState.classList.toggle("hidden", projects.length > 0);
     projectsGrid.innerHTML = projects.map(project => {
       const firstImage = project.pages.flatMap(page => page.items || []).find(item => item.type === "image");
       const firstText = project.pages.flatMap(page => page.items || []).find(item => item.type === "text");
@@ -139,17 +140,102 @@
         ? `<img src="${photoSource(project, firstImage)}" alt="">`
         : `<div class="cover-placeholder"><span>✿</span></div>`;
       const caption = firstText ? escapeHtml(firstText.text).slice(0, 40) : "little moments";
-      return `<article class="project-card" data-project-id="${escapeHtml(project.id)}" tabindex="0" role="button" aria-label="Open ${title}">
-        <div class="project-cover"><span class="cover-tape"></span><div class="project-cover-inner">${cover}<span class="cover-caption">${caption}</span></div></div>
-        <div class="project-meta"><div><h3>${title}</h3><p>${project.pages.length} ${project.pages.length === 1 ? "page" : "pages"} · edited ${relativeDate(project.updatedAt)}</p></div><span class="project-arrow">↗</span></div>
+      return `<article class="project-card" data-project-id="${escapeHtml(project.id)}">
+        <button class="project-open-button" type="button" aria-label="Open ${title}">
+          <div class="project-cover"><span class="cover-tape"></span><div class="project-cover-inner">${cover}<span class="cover-caption">${caption}</span></div></div>
+          <div class="project-meta"><div><h3>${title}</h3><p>${project.pages.length} ${project.pages.length === 1 ? "page" : "pages"} · edited ${relativeDate(project.updatedAt)}</p></div><span class="project-arrow">↗</span></div>
+        </button>
+        <div class="project-actions">
+          <button class="project-action-button" type="button" data-project-action="rename" aria-label="Rename ${title}">Rename</button>
+          <button class="project-action-button project-delete-button" type="button" data-project-action="delete" aria-label="Delete ${title}">Delete</button>
+        </div>
       </article>`;
     }).join("");
-    $$(".project-card").forEach(card => {
-      card.addEventListener("click", () => openProject(card.dataset.projectId));
-      card.addEventListener("keydown", event => {
-        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openProject(card.dataset.projectId); }
+    $$(".project-open-button").forEach(button => {
+      button.addEventListener("click", () => openProject(button.closest(".project-card").dataset.projectId));
+    });
+    $$(".project-action-button").forEach(button => {
+      button.addEventListener("click", () => {
+        const projectId = button.closest(".project-card").dataset.projectId;
+        if (button.dataset.projectAction === "rename") openRenameModal(projectId);
+        else deleteProject(projectId);
       });
     });
+  }
+
+  function openRenameModal(projectId) {
+    const project = projects.find(entry => entry.id === projectId);
+    if (!project) return;
+    modalRoot.innerHTML = `<div class="modal-backdrop"><form class="modal-card" id="rename-project-form">
+      <h2>Rename project.</h2><p>Choose a new name for this project.</p>
+      <label for="rename-project-title">PROJECT NAME</label><input id="rename-project-title" name="title" type="text" maxlength="60" autocomplete="off" required value="${escapeHtml(project.title || "")}">
+      <div class="modal-actions"><button type="button" class="modal-cancel" id="cancel-rename">Cancel</button><button type="submit" class="button button-dark">Save name</button></div>
+    </form></div>`;
+    const form = $("#rename-project-form");
+    const titleInput = $("#rename-project-title");
+    titleInput.focus();
+    titleInput.select();
+    $("#cancel-rename").addEventListener("click", () => modalRoot.innerHTML = "");
+    $(".modal-backdrop").addEventListener("click", event => { if (event.target === event.currentTarget) modalRoot.innerHTML = ""; });
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const title = titleInput.value.trim();
+      if (!title) return;
+      const previousTitle = project.title;
+      const previousUpdatedAt = project.updatedAt;
+      project.title = title;
+      project.updatedAt = new Date().toISOString();
+      const saveButton = $("button[type='submit']", form);
+      saveButton.disabled = true;
+      try {
+        await saveProject(project);
+        modalRoot.innerHTML = "";
+        renderGallery();
+      } catch (error) {
+        project.title = previousTitle;
+        project.updatedAt = previousUpdatedAt;
+        saveButton.disabled = false;
+        console.error("Could not rename scrapbook.", error);
+        showToast("Could not save the new project name.");
+      }
+    });
+  }
+
+  async function deleteProject(projectId) {
+    const project = projects.find(entry => entry.id === projectId);
+    if (!project || !confirm(`Delete "${project.title || "Untitled scrapbook"}" and all of its pages and photos? This cannot be undone.`)) return;
+    try {
+      await runTransaction("readwrite", store => store.delete(projectId));
+      projects = projects.filter(entry => entry.id !== projectId);
+      renderGallery();
+    } catch (error) {
+      console.error("Could not delete scrapbook.", error);
+      showToast("Could not delete this project from the local database.");
+    }
+  }
+
+  function setAuthMode(mode) {
+    const isSignup = mode === "signup";
+    $("#signup-tab").classList.toggle("active", isSignup);
+    $("#signup-tab").setAttribute("aria-selected", String(isSignup));
+    $("#signup-tab").tabIndex = isSignup ? 0 : -1;
+    $("#login-tab").classList.toggle("active", !isSignup);
+    $("#login-tab").setAttribute("aria-selected", String(!isSignup));
+    $("#login-tab").tabIndex = isSignup ? -1 : 0;
+    $("#auth-form").setAttribute("aria-labelledby", isSignup ? "signup-tab" : "login-tab");
+    $("#auth-title").innerHTML = isSignup ? "Welcome to<br><em>little folio.</em>" : "Welcome<br><em>back.</em>";
+    $("#auth-password").setAttribute("placeholder", isSignup ? "At least 8 characters" : "Your password");
+    $("#auth-password").minLength = isSignup ? 8 : 1;
+    $("#auth-submit").textContent = isSignup ? "Sign up (demo)" : "Log in (demo)";
+  }
+
+  function enterDemoGallery() {
+    $("#auth-form").reset();
+    appRoot.classList.remove("auth-screen");
+    authView.classList.add("hidden");
+    galleryView.classList.remove("hidden");
+    renderGallery();
+    showToast("Demo only: no account was created; projects are stored in this browser.");
   }
 
   function relativeDate(timestamp) {
@@ -163,9 +249,9 @@
 
   function openCreateModal() {
     modalRoot.innerHTML = `<div class="modal-backdrop"><form class="modal-card" id="create-project-form">
-      <h2>A new little story.</h2><p>Give your scrapbook a name. You can always change it later.</p>
-      <label for="project-name">SCRAPBOOK NAME</label><input id="project-name" name="title" type="text" maxlength="60" placeholder="A summer to remember" autocomplete="off" required>
-      <div class="modal-actions"><button type="button" class="modal-cancel" id="cancel-create">Maybe later</button><button type="submit" class="button button-dark">Create scrapbook <span>↗</span></button></div>
+      <h2>Start a new project.</h2><p>Give it a name to get started.</p>
+      <label for="project-name">PROJECT NAME</label><input id="project-name" name="title" type="text" maxlength="60" placeholder="A summer to remember" autocomplete="off" required>
+      <div class="modal-actions"><button type="button" class="modal-cancel" id="cancel-create">Maybe later</button><button type="submit" class="button button-dark">Start project <span>↗</span></button></div>
     </form></div>`;
     const form = $("#create-project-form");
     $("#project-name").focus();
@@ -175,7 +261,7 @@
       event.preventDefault();
       const title = $("#project-name").value.trim();
       if (!title) return;
-      const project = { id: makeId(), title, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), pages: [{ id: makeId(), items: [] }] };
+      const project = { id: makeId(), title, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), pages: [{ id: makeId(), items: [], backgroundColor: "#fcfaf4" }] };
       projects.unshift(project);
       const submit = $("button[type='submit']", form);
       submit.disabled = true;
@@ -186,7 +272,7 @@
       }).catch(error => {
         projects = projects.filter(entry => entry.id !== project.id);
         submit.disabled = false;
-        submit.textContent = "Create scrapbook";
+        submit.textContent = "Start project";
         console.error("Could not create scrapbook.", error);
         showToast("Could not create a scrapbook in the local database.");
       });
@@ -196,7 +282,10 @@
   function openProject(projectId) {
     currentProject = projects.find(project => project.id === projectId);
     if (!currentProject) return;
-    if (!currentProject.pages.length) currentProject.pages.push({ id: makeId(), items: [] });
+    if (!currentProject.pages.length) currentProject.pages.push({ id: makeId(), items: [], backgroundColor: "#fcfaf4" });
+    currentProject.pages.forEach(page => {
+      if (!page.backgroundColor) page.backgroundColor = "#fcfaf4";
+    });
     if (!Array.isArray(currentProject.photos)) currentProject.photos = [];
     currentPageIndex = 0;
     selectedItemId = null;
@@ -208,7 +297,7 @@
     renderEditor();
   }
 
-  function currentPage() { return currentProject.pages[currentPageIndex]; }
+  function currentPage() { return currentProject?.pages?.[currentPageIndex] || null; }
 
   function photoSource(project, item) {
     if (item.photoId) return project.photos?.find(photo => photo.id === item.photoId)?.src || "";
@@ -218,7 +307,12 @@
   function renderEditor() {
     if (!currentProject) return;
     pageItems.innerHTML = "";
-    const items = currentPage().items || (currentPage().items = []);
+    const page = currentPage();
+    if (page && !page.backgroundColor) page.backgroundColor = "#fcfaf4";
+    pageElement.style.background = page.backgroundColor || "#fcfaf4";
+    const swatches = $$(".page-color-swatch");
+    swatches.forEach(swatch => swatch.classList.toggle("selected", swatch.dataset.pageColor === page.backgroundColor));
+    const items = page.items || (page.items = []);
     items.forEach(item => {
       const element = document.createElement("div");
       element.className = `page-item${item.id === selectedItemId ? " selected" : ""}`;
@@ -234,12 +328,14 @@
         element.append(image);
       } else {
         const text = document.createElement("div");
-        text.className = "page-item-text";
+        text.className = `page-item-text${item.type === "sticker" ? " page-item-sticker" : ""}`;
         text.textContent = item.text;
         text.style.fontFamily = fontStack(item.font);
-        text.style.fontSize = `${item.fontSize}px`;
-        text.style.color = item.color;
-        text.style.textAlign = item.align || "left";
+        text.style.fontSize = `${item.fontSize || 28}px`;
+        text.style.color = item.color || "#303b2e";
+        text.style.textAlign = item.align || "center";
+        text.style.lineHeight = item.type === "sticker" ? "1" : "1.2";
+        text.style.fontWeight = item.type === "sticker" ? "700" : "400";
         element.append(text);
       }
       const handle = document.createElement("span");
@@ -249,7 +345,7 @@
       element.addEventListener("click", event => { event.stopPropagation(); selectItem(item.id); });
       pageItems.append(element);
     });
-    $("#page-empty-hint").classList.toggle("hidden", items.length > 0);
+    $("#page-empty-hint").classList.add("hidden");
     $("#page-title-label").textContent = `PAGE ${String(currentPageIndex + 1).padStart(2, "0")}`;
     $("#page-count-label").textContent = `${currentProject.pages.length} ${currentProject.pages.length === 1 ? "page" : "pages"}`;
     renderPageStrip();
@@ -283,23 +379,32 @@
   }
 
   function selectedItem() {
-    return currentPage()?.items.find(item => item.id === selectedItemId);
+    return currentPage()?.items?.find(item => item.id === selectedItemId) || null;
   }
 
   function updateInspector() {
     const item = selectedItem();
+    const isTextLike = item && (item.type === "text" || item.type === "sticker");
     $("#inspector-empty").classList.toggle("hidden", Boolean(item));
-    $("#text-controls").classList.toggle("hidden", !item || item.type !== "text");
+    $("#text-controls").classList.toggle("hidden", !isTextLike);
     $("#image-controls").classList.toggle("hidden", !item || item.type !== "image");
-    $("#inspector-title").textContent = item ? (item.type === "text" ? "A little note" : "Your photo") : "A little note";
-    $("#inspector-description").textContent = item ? (item.type === "text" ? "Say it just the way you like." : "Adjust, crop, or move your photo.") : "Pick something on your page to make it your own.";
+    $("#sticker-size-controls").classList.toggle("hidden", !item || item.type !== "sticker");
+    $("#inspector-title").textContent = item ? (item.type === "image" ? "Your photo" : item.type === "sticker" ? "A sticker" : "A little note") : "A little note";
+    $("#inspector-description").textContent = item ? (item.type === "image" ? "Adjust, crop, or move your photo." : item.type === "sticker" ? "A tiny bit of personality for the page." : "Say it just the way you like.") : "Pick something on your page to make it your own.";
     if (!item) return;
-    if (item.type === "text") {
+    if (isTextLike) {
       $("#text-content").value = item.text;
       $("#font-family").value = item.font || "serif";
       $("#font-size").value = item.fontSize || 24;
       $("#font-size-value").textContent = `${item.fontSize || 24} px`;
       $$(".color-swatch").forEach(swatch => swatch.classList.toggle("selected", swatch.dataset.color === item.color));
+      if (item.type === "sticker") {
+        $("#sticker-width").value = Math.max(8, Math.min(80, item.width));
+        $("#sticker-height").value = Math.max(8, Math.min(80, item.height));
+        $("#sticker-width-value").textContent = `${Math.round(item.width)}%`;
+        $("#sticker-height-value").textContent = `${Math.round(item.height)}%`;
+      }
+      $("#delete-element-button").textContent = item.type === "sticker" ? "⌫ Delete sticker" : "⌫ Delete text";
     } else {
       $("#selected-image-preview").src = photoSource(currentProject, item);
       const width = Math.round(item.width / 100 * pageElement.clientWidth);
@@ -320,6 +425,26 @@
     scheduleSave();
   }
 
+  function stickerFontSize(width, height) {
+    const scale = Math.sqrt((width / 16) * (height / 14));
+    return Math.max(12, Math.min(144, Math.round(26 * scale)));
+  }
+
+  function updateStickerDimensions(change) {
+    const item = selectedItem();
+    if (!item || item.type !== "sticker") return;
+    Object.assign(item, change);
+    item.fontSize = stickerFontSize(item.width, item.height);
+    const element = $(`.page-item[data-item-id="${item.id}"]`);
+    if (element) {
+      element.style.width = `${item.width}%`;
+      element.style.height = `${item.height}%`;
+      element.querySelector(".page-item-sticker").style.fontSize = `${item.fontSize}px`;
+    }
+    currentProject.updatedAt = new Date().toISOString();
+    scheduleSave();
+  }
+
   function addText() {
     const item = { id: makeId(), type: "text", text: "A little note to remember…", x: 9, y: 13, width: 34, height: 18, font: "serif", fontSize: 24, color: "#303b2e", align: "left" };
     currentPage().items.push(item);
@@ -328,6 +453,49 @@
     scheduleSave();
     $("#text-content").focus();
     $("#text-content").select();
+  }
+
+  function openStickerPicker() {
+    const stickerOptions = ["✦", "✿", "✳", "❋", "♡", "☼", "✧", "❀", "★", "☆", "☁", "❀", "☺", "☕", "🌿", "🌼"];
+    const shapeOptions = ["■", "●", "▲", "◆", "▣", "◐", "⬢", "✦"];
+    modalRoot.innerHTML = `<div class="modal-backdrop"><div class="modal-card sticker-modal">
+      <div class="photo-library-heading"><div><h2>Sticker tray.</h2><p>Pick a little mark for your page.</p></div><button type="button" class="modal-close" id="close-sticker-picker" aria-label="Close">×</button></div>
+      <div class="sticker-section">
+        <h3>Emojis</h3>
+        <div class="sticker-grid">${stickerOptions.map(sticker => `<button type="button" class="sticker-item" data-sticker="${escapeHtml(sticker)}" aria-label="Add sticker ${escapeHtml(sticker)}">${sticker}</button>`).join("")}</div>
+      </div>
+      <div class="sticker-section">
+        <h3>Shapes</h3>
+        <div class="sticker-grid shape-grid">${shapeOptions.map(shape => `<button type="button" class="sticker-item shape-item" data-sticker="${escapeHtml(shape)}" aria-label="Add shape ${escapeHtml(shape)}">${shape}</button>`).join("")}</div>
+      </div>
+    </div></div>`;
+    $("#close-sticker-picker").addEventListener("click", () => modalRoot.innerHTML = "");
+    $(".modal-backdrop").addEventListener("click", event => { if (event.target === event.currentTarget) modalRoot.innerHTML = ""; });
+    $$(".sticker-item").forEach(button => button.addEventListener("click", () => {
+      const text = button.dataset.sticker;
+      const item = {
+        id: makeId(),
+        type: "sticker",
+        text,
+        x: 14 + Math.random() * 10,
+        y: 12 + Math.random() * 12,
+        width: 16,
+        height: 14,
+        font: "hand",
+        fontSize: 26,
+        color: ["#c57d63", "#7d8f6b", "#9a8bb4", "#d0a762", "#6f8ab3", "#b86e75"][Math.floor(Math.random() * 6)],
+        align: "center"
+      };
+      currentPage().items.push(item);
+      selectedItemId = item.id;
+      modalRoot.innerHTML = "";
+      renderEditor();
+      scheduleSave();
+    }));
+  }
+
+  function addSticker() {
+    openStickerPicker();
   }
 
   function addImage(photoId) {
@@ -410,6 +578,7 @@
     const startX = event.clientX, startY = event.clientY;
     const startLeft = item.x, startTop = item.y, startWidth = item.width, startHeight = item.height;
     const pageBounds = pageElement.getBoundingClientRect();
+    const stickerText = element.querySelector(".page-item-sticker");
     element.setPointerCapture(event.pointerId);
     const move = moveEvent => {
       const dx = (moveEvent.clientX - startX) / pageBounds.width * 100;
@@ -417,6 +586,10 @@
       if (resizing) {
         item.width = Math.max(10, Math.min(90, startWidth + dx));
         item.height = Math.max(10, Math.min(90, startHeight + dy));
+        if (stickerText) {
+          item.fontSize = stickerFontSize(item.width, item.height);
+          stickerText.style.fontSize = `${item.fontSize}px`;
+        }
       } else {
         item.x = Math.max(0, Math.min(100 - item.width, startLeft + dx));
         item.y = Math.max(0, Math.min(100 - item.height, startTop + dy));
@@ -525,12 +698,31 @@
     $("#zoom-label").textContent = `${Math.round(zoom * 100)}%`;
   }
 
+  $$("#auth-view [data-auth-mode]").forEach(button => {
+    button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
+  });
+  $("#auth-form").addEventListener("submit", event => {
+    event.preventDefault();
+    enterDemoGallery();
+  });
+  setAuthMode("signup");
+
   $("#new-project-button").addEventListener("click", openCreateModal);
-  $("#empty-create-button").addEventListener("click", openCreateModal);
   $("#add-photo-button").addEventListener("click", openPhotoLibrary);
   $("#empty-add-photo").addEventListener("click", openPhotoLibrary);
+  $("#add-sticker-button").addEventListener("click", addSticker);
   $("#add-text-button").addEventListener("click", addText);
   $("#empty-add-text").addEventListener("click", addText);
+  $("#page-color-picker").addEventListener("click", event => {
+    const swatch = event.target.closest(".page-color-swatch");
+    if (!swatch) return;
+    const page = currentPage();
+    if (!page) return;
+    page.backgroundColor = swatch.dataset.pageColor;
+    currentProject.updatedAt = new Date().toISOString();
+    renderEditor();
+    scheduleSave();
+  });
   $("#add-page-button").addEventListener("click", addPage);
   $("#add-page-top").addEventListener("click", addPage);
   $("#add-page-tile").addEventListener("click", addPage);
@@ -557,7 +749,7 @@
   photoInput.addEventListener("change", () => handlePhotoFiles([...photoInput.files]));
   $("#text-content").addEventListener("input", event => {
     const item = selectedItem();
-    if (!item || item.type !== "text") return;
+    if (!item || (item.type !== "text" && item.type !== "sticker")) return;
     item.text = event.target.value;
     const textElement = $(`.page-item[data-item-id="${item.id}"] .page-item-text`);
     if (textElement) textElement.textContent = item.text;
@@ -569,6 +761,14 @@
   $("#font-size").addEventListener("input", event => {
     $("#font-size-value").textContent = `${event.target.value} px`;
     updateSelected({ fontSize: Number(event.target.value) });
+  });
+  $("#sticker-width").addEventListener("input", event => {
+    $("#sticker-width-value").textContent = `${event.target.value}%`;
+    updateStickerDimensions({ width: Number(event.target.value) });
+  });
+  $("#sticker-height").addEventListener("input", event => {
+    $("#sticker-height-value").textContent = `${event.target.value}%`;
+    updateStickerDimensions({ height: Number(event.target.value) });
   });
   $("#text-colors").addEventListener("click", event => {
     const swatch = event.target.closest(".color-swatch");
@@ -601,16 +801,13 @@
     if (event.key === "Escape" && modalRoot.firstChild) modalRoot.innerHTML = "";
   });
   $("#new-project-button").disabled = true;
-  $("#empty-create-button").disabled = true;
   loadProjects().then(loadedProjects => {
-    projects = loadedProjects;
+    projects = loadedProjects.sort((first, second) => new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0));
     renderGallery();
     $("#new-project-button").disabled = false;
-    $("#empty-create-button").disabled = false;
   }).catch(error => {
     console.error("Could not load scrapbooks from the local database.", error);
     $("#new-project-button").disabled = false;
-    $("#empty-create-button").disabled = false;
-    showToast("Could not open the local scrapbook database.");
+    showToast("Could not load saved projects from the local database.");
   });
 })();
