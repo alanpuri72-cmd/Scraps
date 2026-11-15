@@ -223,7 +223,7 @@
     $("#login-tab").setAttribute("aria-selected", String(!isSignup));
     $("#login-tab").tabIndex = isSignup ? -1 : 0;
     $("#auth-form").setAttribute("aria-labelledby", isSignup ? "signup-tab" : "login-tab");
-    $("#auth-title").innerHTML = isSignup ? "Welcome to<br><em>little folio.</em>" : "Welcome<br><em>back.</em>";
+    $("#auth-title").innerHTML = isSignup ? "Welcome to<br><em>Scraps.</em>" : "Welcome<br><em>back.</em>";
     $("#auth-password").setAttribute("placeholder", isSignup ? "At least 8 characters" : "Your password");
     $("#auth-password").minLength = isSignup ? 8 : 1;
     $("#auth-submit").textContent = isSignup ? "Sign up (demo)" : "Log in (demo)";
