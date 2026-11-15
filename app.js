@@ -549,7 +549,15 @@
   }
 
   function fontStack(font) {
-    return font === "hand" ? '"Comic Sans MS", "Segoe Print", cursive' : font === "sans" ? '"Segoe UI", Arial, sans-serif' : 'Georgia, "Times New Roman", serif';
+    const stacks = {
+      serif: 'Georgia, "Times New Roman", serif',
+      sans: '"Segoe UI", Arial, sans-serif',
+      hand: '"Segoe Print", "Comic Sans MS", cursive',
+      script: '"Segoe Script", "Lucida Handwriting", cursive',
+      cursive: '"Lucida Handwriting", "Brush Script MT", cursive',
+      marker: '"Comic Sans MS", "Chalkboard", cursive'
+    };
+    return stacks[font] || stacks.serif;
   }
 
   function renderPageStrip() {
@@ -652,13 +660,20 @@
   }
 
   function openStickerPicker() {
-    const stickerOptions = ["✦", "✿", "✳", "❋", "♡", "☼", "✧", "❀", "★", "☆", "☁", "❀", "☺", "☕", "🌿", "🌼"];
+    const stickerOptions = [
+      "😀", "😎", "🥰", "😂", "😉", "😴", "🤗", "🥳",
+      "❤️", "🧡", "💛", "💚", "💙", "💜", "🩷", "🤍", "💖", "💌",
+      "🐶", "🐱", "🐰", "🦋", "🐝", "🐞", "🐸", "🦊", "🐻", "🐼",
+      "🌸", "🌼", "🌻", "🌷", "🌿", "🍀", "🌵", "🍄", "🌈", "☀️", "🌙", "⭐",
+      "🍓", "🍒", "🍉", "🍋", "🍊", "🍑", "🥑", "🍰", "🧁", "🍪", "☕", "🍵",
+      "🎨", "🎀", "🎈", "🎁", "📚", "✉️", "📷", "🧸", "🕯️", "✨", "💫", "🌟"
+    ];
     const shapeOptions = ["■", "●", "▲", "◆", "▣", "◐", "⬢", "✦"];
     modalRoot.innerHTML = `<div class="modal-backdrop"><div class="modal-card sticker-modal">
       <div class="photo-library-heading"><div><h2>Sticker tray.</h2><p>Pick a little mark for your page.</p></div><button type="button" class="modal-close" id="close-sticker-picker" aria-label="Close">×</button></div>
       <div class="sticker-section">
         <h3>Emojis</h3>
-        <div class="sticker-grid">${stickerOptions.map(sticker => `<button type="button" class="sticker-item" data-sticker="${escapeHtml(sticker)}" aria-label="Add sticker ${escapeHtml(sticker)}">${sticker}</button>`).join("")}</div>
+        <div class="sticker-grid emoji-grid" aria-label="Scrollable emoji choices">${stickerOptions.map(sticker => `<button type="button" class="sticker-item" data-sticker="${escapeHtml(sticker)}" aria-label="Add sticker ${escapeHtml(sticker)}">${sticker}</button>`).join("")}</div>
       </div>
       <div class="sticker-section">
         <h3>Shapes</h3>
