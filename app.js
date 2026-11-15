@@ -1,8 +1,10 @@
 (() => {
   const DATABASE_NAME = "Scraps";
-  const DATABASE_VERSION = 1;
+  const DATABASE_VERSION = 2;
   const PROJECTS_STORE = "projects";
   const LEGACY_STORAGE_KEY = "Scraps-projects-v1";
+  const ACCOUNTS_STORAGE_KEY = "Scraps-local-accounts-v1";
+  const SESSION_STORAGE_KEY = "Scraps-local-session-v1";
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const appRoot = $("#app");
@@ -16,6 +18,8 @@
   const modalRoot = $("#modal-root");
   const toast = $("#toast");
   let projects = [];
+  let activeAccount = null;
+  let authMode = "signup";
   let databasePromise;
   let currentProject = null;
   let currentPageIndex = 0;
@@ -93,7 +97,181 @@
     return imported;
   }
 
+  function readAccounts() {
+    const storedAccounts = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+    if (!storedAccounts) return [];
+    let accounts;
+    try {
+      accounts = JSON.parse(storedAccounts);
+    } catch (error) {
+      console.error("Could not parse saved local accounts.", error);
+      throw new Error("The saved local account list is not valid JSON.");
+    }
+    if (!Array.isArray(accounts)) throw new Error("The saved local account list has an invalid format.");
+    if (accounts.some(account =>
+      !account ||
+      typeof account.id !== "string" ||
+      typeof account.username !== "string" ||
+      typeof account.normalizedUsername !== "string" ||
+      typeof account.passwordSalt !== "string" ||
+      typeof account.passwordHash !== "string"
+    )) throw new Error("The saved local account list contains an invalid account record.");
+    return accounts;
+  }
+
+  function writeAccounts(accounts) {
+    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+  }
+
+  function encodeBase64(bytes) {
+    return btoa(String.fromCharCode(...bytes));
+  }
+
+  function decodeBase64(value) {
+    return Uint8Array.from(atob(value), character => character.charCodeAt(0));
+  }
+
+  async function derivePasswordHash(password, salt) {
+    if (!crypto.subtle) throw new Error("Password hashing is unavailable in this browser context.");
+    const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+    const hash = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: 210000 }, material, 256);
+    return encodeBase64(new Uint8Array(hash));
+  }
+
+  function sameHash(first, second) {
+    if (first.length !== second.length) return false;
+    let difference = 0;
+    for (let index = 0; index < first.length; index++) difference |= first.charCodeAt(index) ^ second.charCodeAt(index);
+    return difference === 0;
+  }
+
+  async function createLocalAccount(username, password) {
+    const accounts = readAccounts();
+    const normalizedUsername = username.trim().toLocaleLowerCase();
+    if (accounts.some(account => account.normalizedUsername === normalizedUsername)) {
+      throw new Error("That username is already in use on this browser.");
+    }
+
+    const account = {
+      id: makeId(),
+      username: username.trim(),
+      normalizedUsername,
+      passwordSalt: encodeBase64(crypto.getRandomValues(new Uint8Array(16))),
+      passwordHash: ""
+    };
+    account.passwordHash = await derivePasswordHash(password, decodeBase64(account.passwordSalt));
+
+    const priorAccounts = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
+    const priorSession = localStorage.getItem(SESSION_STORAGE_KEY);
+    const legacyProjects = accounts.length === 0 ? (await loadProjects()).filter(project => !project.ownerId) : [];
+    let projectsAssigned = false;
+    try {
+      writeAccounts([...accounts, account]);
+      localStorage.setItem(SESSION_STORAGE_KEY, account.id);
+      if (legacyProjects.length) {
+        await runTransaction("readwrite", store => legacyProjects.forEach(project => {
+          project.ownerId = account.id;
+          store.put(project);
+        }));
+        projectsAssigned = true;
+      }
+      await enterAccount(account);
+    } catch (error) {
+      activeAccount = null;
+      projects = [];
+      if (projectsAssigned) {
+        try {
+          await runTransaction("readwrite", store => legacyProjects.forEach(project => {
+            delete project.ownerId;
+            store.put(project);
+          }));
+        } catch (rollbackError) {
+          console.error("Could not restore project ownership after account creation failed.", rollbackError);
+        }
+      }
+      if (priorAccounts === null) localStorage.removeItem(ACCOUNTS_STORAGE_KEY);
+      else localStorage.setItem(ACCOUNTS_STORAGE_KEY, priorAccounts);
+      if (priorSession === null) localStorage.removeItem(SESSION_STORAGE_KEY);
+      else localStorage.setItem(SESSION_STORAGE_KEY, priorSession);
+      throw error;
+    }
+  }
+
+  async function authenticateLocalAccount(username, password) {
+    const normalizedUsername = username.trim().toLocaleLowerCase();
+    const account = readAccounts().find(entry => entry.normalizedUsername === normalizedUsername);
+    if (!account) throw new Error("Incorrect username or password.");
+    let passwordHash;
+    try {
+      passwordHash = await derivePasswordHash(password, decodeBase64(account.passwordSalt));
+    } catch (error) {
+      console.error("Could not verify the local account password.", error);
+      throw new Error("Could not verify the password in this browser.");
+    }
+    if (!sameHash(passwordHash, account.passwordHash)) throw new Error("Incorrect username or password.");
+    localStorage.setItem(SESSION_STORAGE_KEY, account.id);
+    try {
+      await enterAccount(account);
+    } catch (error) {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+      throw error;
+    }
+  }
+
+  async function enterAccount(account) {
+    const allProjects = await loadProjects();
+    activeAccount = account;
+    projects = allProjects.filter(project => project.ownerId === account.id);
+    appRoot.classList.remove("auth-screen");
+    authView.classList.add("hidden");
+    editorView.classList.add("hidden");
+    galleryView.classList.remove("hidden");
+    $("#account-button").textContent = account.username.slice(0, 1).toLocaleUpperCase();
+    $("#account-button").setAttribute("aria-label", `Sign out ${account.username}`);
+    $("#account-button").title = `Sign out ${account.username}`;
+    $("#new-project-button").disabled = false;
+    $("#auth-form").reset();
+    renderGallery();
+  }
+
+  async function initializeApplication() {
+    const accounts = readAccounts();
+    const sessionAccountId = localStorage.getItem(SESSION_STORAGE_KEY);
+    const account = accounts.find(entry => entry.id === sessionAccountId);
+    if (account) {
+      await enterAccount(account);
+    } else if (sessionAccountId) {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }
+
+  async function signOut() {
+    clearTimeout(saveTimer);
+    if (currentProject) {
+      currentProject.updatedAt = new Date().toISOString();
+      try {
+        await saveProject(currentProject);
+      } catch (error) {
+        console.error("Could not save scrapbook before signing out.", error);
+        showToast("Could not save this scrapbook. You are still signed in.");
+        return;
+      }
+    }
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    activeAccount = null;
+    currentProject = null;
+    projects = [];
+    editorView.classList.add("hidden");
+    galleryView.classList.add("hidden");
+    authView.classList.remove("hidden");
+    appRoot.classList.add("auth-screen");
+    setAuthMode("login");
+  }
+
   function saveProject(project) {
+    if (!activeAccount || project.ownerId !== activeAccount.id) {
+      return Promise.reject(new Error("Cannot save a project outside the signed-in account."));
+    }
     return runTransaction("readwrite", store => store.put(project));
   }
 
@@ -215,6 +393,7 @@
   }
 
   function setAuthMode(mode) {
+    authMode = mode;
     const isSignup = mode === "signup";
     $("#signup-tab").classList.toggle("active", isSignup);
     $("#signup-tab").setAttribute("aria-selected", String(isSignup));
@@ -225,17 +404,34 @@
     $("#auth-form").setAttribute("aria-labelledby", isSignup ? "signup-tab" : "login-tab");
     $("#auth-title").innerHTML = isSignup ? "Welcome to<br><em>Scraps.</em>" : "Welcome<br><em>back.</em>";
     $("#auth-password").setAttribute("placeholder", isSignup ? "At least 8 characters" : "Your password");
+    $("#auth-password").setAttribute("autocomplete", isSignup ? "new-password" : "current-password");
     $("#auth-password").minLength = isSignup ? 8 : 1;
-    $("#auth-submit").textContent = isSignup ? "Sign up (demo)" : "Log in (demo)";
+    $("#auth-submit").textContent = isSignup ? "Create account" : "Log in";
   }
 
-  function enterDemoGallery() {
-    $("#auth-form").reset();
-    appRoot.classList.remove("auth-screen");
-    authView.classList.add("hidden");
-    galleryView.classList.remove("hidden");
-    renderGallery();
-    showToast("Demo only: no account was created; projects are stored in this browser.");
+  async function handleAuthentication(event) {
+    event.preventDefault();
+    const username = $("#auth-username").value.trim();
+    const password = $("#auth-password").value;
+    if (authMode === "signup" && !/^[a-zA-Z0-9._-]{3,24}$/.test(username)) {
+      showToast("Use 3–24 letters, numbers, periods, underscores, or hyphens for your username.");
+      return;
+    }
+
+    const submit = $("#auth-submit");
+    submit.disabled = true;
+    submit.textContent = authMode === "signup" ? "Creating account…" : "Logging in…";
+    try {
+      if (authMode === "signup") await createLocalAccount(username, password);
+      else await authenticateLocalAccount(username, password);
+    } catch (error) {
+      if (error.message !== "Incorrect username or password." && error.message !== "That username is already in use on this browser.") {
+        console.error("Could not complete local account authentication.", error);
+      }
+      showToast(error.message || "Could not access local account storage.");
+      submit.disabled = false;
+      submit.textContent = authMode === "signup" ? "Create account" : "Log in";
+    }
   }
 
   function relativeDate(timestamp) {
@@ -261,7 +457,7 @@
       event.preventDefault();
       const title = $("#project-name").value.trim();
       if (!title) return;
-      const project = { id: makeId(), title, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), pages: [{ id: makeId(), items: [], backgroundColor: "#fcfaf4" }] };
+      const project = { id: makeId(), ownerId: activeAccount.id, title, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), pages: [{ id: makeId(), items: [], backgroundColor: "#fcfaf4" }] };
       projects.unshift(project);
       const submit = $("button[type='submit']", form);
       submit.disabled = true;
@@ -281,7 +477,7 @@
 
   function openProject(projectId) {
     currentProject = projects.find(project => project.id === projectId);
-    if (!currentProject) return;
+    if (!currentProject || currentProject.ownerId !== activeAccount?.id) return;
     if (!currentProject.pages.length) currentProject.pages.push({ id: makeId(), items: [], backgroundColor: "#fcfaf4" });
     currentProject.pages.forEach(page => {
       if (!page.backgroundColor) page.backgroundColor = "#fcfaf4";
@@ -701,12 +897,10 @@
   $$("#auth-view [data-auth-mode]").forEach(button => {
     button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
   });
-  $("#auth-form").addEventListener("submit", event => {
-    event.preventDefault();
-    enterDemoGallery();
-  });
+  $("#auth-form").addEventListener("submit", handleAuthentication);
   setAuthMode("signup");
 
+  $("#account-button").addEventListener("click", signOut);
   $("#new-project-button").addEventListener("click", openCreateModal);
   $("#add-photo-button").addEventListener("click", openPhotoLibrary);
   $("#empty-add-photo").addEventListener("click", openPhotoLibrary);
@@ -801,13 +995,8 @@
     if (event.key === "Escape" && modalRoot.firstChild) modalRoot.innerHTML = "";
   });
   $("#new-project-button").disabled = true;
-  loadProjects().then(loadedProjects => {
-    projects = loadedProjects.sort((first, second) => new Date(second.updatedAt || second.createdAt || 0) - new Date(first.updatedAt || first.createdAt || 0));
-    renderGallery();
-    $("#new-project-button").disabled = false;
-  }).catch(error => {
-    console.error("Could not load scrapbooks from the local database.", error);
-    $("#new-project-button").disabled = false;
-    showToast("Could not load saved projects from the local database.");
+  initializeApplication().catch(error => {
+    console.error("Could not initialize local accounts.", error);
+    showToast("Could not access local account storage. Check browser storage permissions.");
   });
 })();

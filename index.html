@@ -16,7 +16,7 @@
         </a>
         <div class="topbar-right">
           <span class="privacy-note"><span class="lock-icon" aria-hidden="true">⌑</span> just for you</span>
-          <button class="avatar" aria-label="Your private space">a</button>
+          <button class="avatar" id="account-button" aria-label="Sign out">a</button>
         </div>
       </header>
 
@@ -32,11 +32,11 @@
             </div>
             <form id="auth-form" role="tabpanel" aria-labelledby="signup-tab">
               <label for="auth-username">USERNAME</label>
-              <input id="auth-username" name="username" type="text" autocomplete="off" placeholder="Choose a username" required>
+              <input id="auth-username" name="username" type="text" minlength="3" maxlength="24" pattern="[A-Za-z0-9._\-]{3,24}" autocomplete="username" placeholder="Choose a username" required>
               <label for="auth-password">PASSWORD</label>
-              <input id="auth-password" name="password" type="password" autocomplete="off" placeholder="At least 8 characters" minlength="8" required>
-              <p class="auth-prototype-note">Prototype only: this screen does not create accounts or send/save your credentials. Projects are stored in this browser.</p>
-              <button class="button button-dark auth-submit" id="auth-submit" type="submit">Sign up (demo)</button>
+              <input id="auth-password" name="password" type="password" autocomplete="current-password" placeholder="At least 8 characters" minlength="8" required>
+              <p class="auth-prototype-note">Accounts and projects stay in this browser. Passwords are stored as salted hashes. This is local-only and does not provide server-backed account security or recovery.</p>
+              <button class="button button-dark auth-submit" id="auth-submit" type="submit">Create account</button>
             </form>
           </div>
         </section>
